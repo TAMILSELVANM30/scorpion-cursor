@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scorpion Cursor</title>
+  <style>
+    /* 1. CSS to make the canvas fill the screen */
+    body {
+      margin: 0;
+      background: #000;
+      overflow: hidden; /* Hide scrollbars */
+      cursor: none; /* Hide the default mouse cursor */
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <script>
+    // --- Setup ---
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+
+    // --- Configurable Settings ---
+    const numSegments = 50;  // Number of segments in the tail
+    const segmentLength = 8; // How long each segment is
+    const stingerWidth = 3;  // Width of the stinger segment
+    const baseWidth = 20;    // Width of the base (thickest) segment
+    const ribFrequency = 3;  // Draw a rib every N segments
+    
+    // Store the mouse position
+    const mouse = {
+      x: width / 2,
+      y: height / 2,
+    };
+
+    // Store all segments
+    // Each segment is a point {x, y}
+    const segments = [];
+    for (let i = 0; i < numSegments; i++) {
+      segments.push({ x: width / 2, y: height / 2 });
+    }
+
+    // --- Event Listeners ---
+    
+    // Update mouse position
+    document.addEventListener("mousemove", (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+
+    // Resize canvas when window is resized
+    window.addEventListener("resize", () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    });
+
+    // --- Animation Loop ---
+    
+    function animate() {
+      // 1. Clear the canvas
+      // We use a semi-transparent fill to create a "motion blur" trail
+      ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. Update the segments (The IK logic)
+      
+      // The head segment (stinger) moves directly to the mouse
+      segments[0].x = mouse.x;
+      segments[0].y = mouse.y;
+
+      // Loop through the rest of the segments
+      for (let i = 1; i < numSegments; i++) {
+        const head = segments[i - 1]; // The segment in front
+        const tail = segments[i];     // The current segment
+        
+        // Calculate the direction from tail to head
+        const dx = head.x - tail.x;
+        const dy = head.y - tail.y;
+        const angle = Math.atan2(dy, dx);
+        
+        // The new position for the tail segment
+        // It should be `segmentLength` away from the head, along the `angle`
+        tail.x = head.x - Math.cos(angle) * segmentLength;
+        tail.y = head.y - Math.sin(angle) * segmentLength;
+      }
+
+      // 3. Draw the segments (The "Spine" and "Ribs")
+      ctx.strokeStyle = "white";
+      ctx.lineCap = "round";
+
+      for (let i = 0; i < numSegments - 1; i++) {
+        const head = segments[i];
+        const tail = segments[i + 1];
+
+        // Calculate properties for this segment
+        // This makes the tail thicker at the base and thinner at the stinger
+        const t = i / (numSegments - 1); // 0 at head, 1 at base
+        const width = stingerWidth + (baseWidth - stingerWidth) * t;
+        const ribLength = width * 1.2;
+
+        // Draw the main spine segment
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(head.x, head.y);
+        ctx.lineTo(tail.x, tail.y);
+        ctx.stroke();
+
+        // Draw the ribs every N segments
+        if (i > 0 && i % ribFrequency === 0) {
+          // Calculate the angle perpendicular to the spine
+          const dx = tail.x - head.x;
+          const dy = tail.y - head.y;
+          const angle = Math.atan2(dy, dx);
+          const perpAngle = angle + Math.PI / 2; // Add 90 degrees
+
+          // Calculate rib endpoints
+          const ribX1 = tail.x + Math.cos(perpAngle) * ribLength;
+          const ribY1 = tail.y + Math.sin(perpAngle) * ribLength;
+          const ribX2 = tail.x - Math.cos(perpAngle) * ribLength;
+          const ribY2 = tail.y - Math.sin(perpAngle) * ribLength;
+
+          // Draw ribs
+          ctx.lineWidth = Math.max(1, width / 8); // Ribs are thinner
+          ctx.beginPath();
+          ctx.moveTo(ribX1, ribY1);
+          ctx.lineTo(ribX2, ribY2);
+          ctx.stroke();
+        }
+      }
+
+      // Request the next frame to continue the animation
+      requestAnimationFrame(animate);
+    }
+
+    // Start the animation!
+    animate();
+  </script>
+</body>
+</html>
